@@ -52,7 +52,7 @@ reverbFactorFFT=0.98;   # fraction of old loudness retained from last chunk --- 
 reverbFactorWave=0.00;
 loudnessBoost=3;			# loudness multiplier to compensate for losses due to reverb normalization
 #initialize synthesizer with fly waveform
-filenameFly = '../data/ZOOM0006_Tr12_excerpt.WAV'
+filenameFly = 'template/ZOOM0006_Tr12_excerpt.WAV'
 
 melMatrixVoice= librosa.filters.mel(48000, paramSTFT['blockSize'],n_mels=32,fmax=10000)
 melMatrixFly= librosa.filters.mel(48000, paramSTFT['blockSize'],n_mels=32,fmax=10000)
