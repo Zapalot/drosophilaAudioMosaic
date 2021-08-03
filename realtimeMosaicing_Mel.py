@@ -49,11 +49,11 @@ class MosaicSynthesizer:
 			self.ifftProcessor=HopWiseInverseSTFT(paramSTFT,paramSTFT['blockSize']/2+1)
 			
 		# prepare some STFT information of the mosaic grains
-		def  prepareFlyInformation(self,templateFileName, subsampling=1,maxFlyTemplateSize=512):
+		def  prepareFlyInformation(self,templateFileName, maxFlyTemplateSize=512):
 			fs, flyWave = wav.read( templateFileName)
 			make_monaural(flyWave)
 			flyWave = pcmInt16ToFloat32Numpy(flyWave)
-			flyWave=flyWave[0::subsampling]
+			flyWave=flyWave[0::self.subsampling]
 			self.paramSTFT['numSamples'] = len(flyWave)
 			flySTFT, flyAmplitudes, _ = forwardSTFT(flyWave, self.paramSTFT)
 			#Do a Mel-Transform of the Spectrum for faster Mosaicing
@@ -86,10 +86,11 @@ class MosaicSynthesizer:
 					return np.zeros(self.hopSize*4)
 			else:
 				return self.updateMosaic(newWaveform)
-		def precessAudioChunk(self,newAudio):
-			reducedIndata=newAudio[0::self.subsampling,0]  # use only every N'th sample to save processing power
+		def processAudioChunk(self,newAudio):
+			reducedIndata=newAudio[0::self.subsampling]  # use only every N'th sample to save processing power
 			newMosaicWaveform=self.processInputChunk(reducedIndata)
-			return self.extractCentralChunk(newMosaicWaveform)			
+			return np.repeat(self.extractCentralChunk(newMosaicWaveform).squeeze(),self.subsampling)
+			 		
 		#once we have gathered enough voice frames, we can fill the intital set of buffers and matrices:
 		def initializeVoice(self):
 			#fill voice STFT matrix

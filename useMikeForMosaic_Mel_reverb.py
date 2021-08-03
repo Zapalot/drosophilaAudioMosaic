@@ -48,8 +48,8 @@ filenameFly = 'template/ZOOM0006_Tr12_excerpt.WAV'
 
 melMatrixVoice= librosa.filters.mel(48000, paramSTFT['blockSize'],n_mels=32,fmax=10000)
 melMatrixFly= librosa.filters.mel(48000, paramSTFT['blockSize'],n_mels=32,fmax=10000)
-synthesizer=MosaicSynthesizer(paramSTFT, paramNMFdiag,melMatrixVoice,melMatrixFly,reverbFactorFFT)
-synthesizer.prepareFlyInformation(filenameFly,subsampling,maxFlyTemplateSize)
+synthesizer=MosaicSynthesizer(paramSTFT, paramNMFdiag,melMatrixVoice,melMatrixFly,reverbFactorFFT,1)
+synthesizer.prepareFlyInformation(filenameFly,maxFlyTemplateSize)
 
 reverbBuffer = np.zeros(paramSTFT['hopSize'])
 

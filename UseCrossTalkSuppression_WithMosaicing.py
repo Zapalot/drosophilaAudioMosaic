@@ -46,18 +46,18 @@ paramNMFdiag['continuity']['grid'] = 1
 paramNMFdiag['continuity']['sparsen'] = [1, 7]
 
 
-subsampling=1           # use only every N'th sample to save processing power
+subsampling=2           # use only every N'th sample to save processing power
 maxFlyTemplateSize=256  # use only the first n mosaic grains to speed up NMFdiag
 reverbFactorFFT=0.98;   # fraction of old loudness retained from last chunk --- 0: no reverb ... 0.9999: almost inifinite reverb
-reverbFactorWave=0.00;
+
 loudnessBoost=3;			# loudness multiplier to compensate for losses due to reverb normalization
 #initialize synthesizer with fly waveform
 filenameFly = 'template/ZOOM0006_Tr12_excerpt.WAV'
 
 melMatrixVoice= librosa.filters.mel(48000, paramSTFT['blockSize'],n_mels=32,fmax=10000)
 melMatrixFly= librosa.filters.mel(48000, paramSTFT['blockSize'],n_mels=32,fmax=10000)
-synthesizer=MosaicSynthesizer(paramSTFT, paramNMFdiag,melMatrixVoice,melMatrixFly,reverbFactorFFT)
-synthesizer.prepareFlyInformation(filenameFly,subsampling,maxFlyTemplateSize)
+synthesizer=MosaicSynthesizer(paramSTFT, paramNMFdiag,melMatrixVoice,melMatrixFly,reverbFactorFFT,subsampling)
+synthesizer.prepareFlyInformation(filenameFly,maxFlyTemplateSize)
 
 reverbBuffer = np.zeros(paramSTFT['hopSize'])
 
@@ -68,13 +68,13 @@ output_device="Steinberg UR44"
 samplerate=48000
 soundIoBlockSize=512*subsampling
 dtype='float32'
-latency="high"
+latency="low"
 nTotalChannels=3	
 
 #settings for crosstalk elemination
 drosophilaSpeakerChannel=0
 drosophilaMikeChannels=[0,1]
-drosophilaImpulseLength=soundIoBlockSize*8
+drosophilaImpulseLength=soundIoBlockSize*4
 
 headphoneSendChannels=[1,2]
 humanVoiceMikeChannel=2
@@ -91,6 +91,9 @@ simulatedSignalComplete=np.zeros(0)
 
 calibrationFinished=threading.Event()
 
+#debugging
+outCopy=0
+denoisedCopy=0
 #this callback is passed by the sounddeivce library
 def callback(indata, outdata, frames, time, status):
 	if status:
@@ -98,9 +101,13 @@ def callback(indata, outdata, frames, time, status):
 	#oldTime=tm.perf_counter() 
 	drosophilaSpeakerSignal=synthesizer.processAudioChunk( indata[:,humanVoiceMikeChannel])	
 	speakerSignal,denoisedSignal,simulatedSignal=antiCrosstalk.process(drosophilaSpeakerSignal,np.transpose( indata[:,drosophilaMikeChannels]))
+	global outCopy
+	global denoisedCopy
+	outCopy=outdata
+	denoisedCopy=denoisedSignal
 
 	outdata[:,drosophilaSpeakerChannel] = speakerSignal #this might either be a test signal or the signal from mosaiicing
-	outdata[:,headphoneSendChannels] = denoisedSignal
+	outdata[:,headphoneSendChannels] = np.transpose(denoisedSignal)
 	
 	#debug recording
 	global playedDisturbance
