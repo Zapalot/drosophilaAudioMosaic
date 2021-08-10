@@ -35,6 +35,8 @@ class MosaicSynthesizer:
 			self.paramNMFdiag=paramNMFdiag
 			self.paramSTFT=paramSTFT
 			self.voiceWaveform=np.zeros([1, ])
+			
+
 
 			self.blockSize=paramSTFT['blockSize']
 			self.hopSize=paramSTFT['hopSize']
@@ -47,6 +49,8 @@ class MosaicSynthesizer:
 		
 			# an overlap-Add-iFFT  to turn the mosaic spectrum back into audio
 			self.ifftProcessor=HopWiseInverseSTFT(paramSTFT,paramSTFT['blockSize']/2+1)
+			
+			self.lastFFTAmplitudes=np.zeros(round(self.blockSize / 2) + 1) #used for external visualization
 			
 		# prepare some STFT information of the mosaic grains
 		def  prepareFlyInformation(self,templateFileName, maxFlyTemplateSize=512):
@@ -128,7 +132,7 @@ class MosaicSynthesizer:
 			windowedSignal =self.paramSTFT['winFunc']*lastVoiceBlock 			# apply windowing
 			voiceSTFTNew = fft(windowedSignal, axis=0)[:round(self.blockSize / 2) + 1] #  drop mirror spectrum of fft
 			voiceAmplitudesNew=np.abs(voiceSTFTNew)
-				
+			self.lastFFTAmplitudes=	voiceAmplitudesNew
 			#reverb
 			voiceAmplitudesNew=voiceAmplitudesNew*(1.0-self.reverbFactor)+self.voiceAmplitudes[:,-1]*(self.reverbFactor)
 			  

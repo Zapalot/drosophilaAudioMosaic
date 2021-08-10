@@ -80,7 +80,27 @@ headphoneSendChannels=[1,2]
 humanVoiceMikeChannel=0
 ##########initialize crosstalk suppression
 antiCrosstalk=CrosstalkSuppressor(soundIoBlockSize,drosophilaImpulseLength,len(drosophilaMikeChannels))
+########## OSC spectrum transmission
+from pythonosc import udp_client
+import threading
 
+oscTargetIp="192.168.0.101"
+oscTargetPort=8000
+oscFFTWindow=np.hamming(soundIoBlockSize)
+oscClient=udp_client.SimpleUDPClient(oscTargetIp, oscTargetPort)
+#self.impulseResponseReadyEvent=threading.Event()
+			
+def sendOscSpectra(speakerWaveForm, drosophilaWaveForm):
+	drosophilaWaveForm*=oscFFTWindow
+	drosophilaFFT=np.fft.rfft(drosophilaWaveForm)
+	
+	speakerWaveForm*=oscFFTWindow
+	speakerFFT=np.fft.rfft(speakerWaveForm)
+	
+	oscClient.send_message("/ffts/drosophila", drosophilaFFT)
+	oscClient.send_message("/ffts/human", speakerFFT)
+	
+#def sendOscSpectraThreadFun(speakerWaveForm, drosophilaWaveForm):
 
 #all time records
 playedDisturbance=np.zeros(0)
@@ -123,12 +143,19 @@ def callback(indata, outdata, frames, time, status):
 
 	outdata[:,drosophilaSpeakerChannel] = speakerSignal #this might either be a test signal or the signal from mosaiicing
 	outdata[:,headphoneSendChannels] = np.transpose(denoisedSignal)
+
 	# performance report
 	timeAvailableForOneBlock=soundIoBlockSize/samplerate
 	timeSpentOnMosaic=synthTime-startTime
 	timeSpentOnCrosstalk=denoiseTime-synthTime
 	print ("mosaic:"+str(timeSpentOnMosaic/timeAvailableForOneBlock)+" crosstalk:"+str(timeSpentOnCrosstalk/timeAvailableForOneBlock))   # how many times realtime performance do we achieve?
 			
+
+	#fft sending
+	denoisedSum=np.sum(denoisedSignal,axis=1)
+	sendOscSpectra( indata[:,humanVoiceMikeChannel],denoisedSum)
+	
+
 	#debug recording
 	#global playedDisturbance
 	#global recordedSignal
