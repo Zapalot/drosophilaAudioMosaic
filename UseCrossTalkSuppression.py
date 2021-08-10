@@ -48,7 +48,7 @@ t = np.linspace(0, 1, testSigLength)
 disturbanceSignal= np.sin(2 * np.pi * 10 * t)*0.2#
 disturbanceSignal=sig.sawtooth(2 * np.pi * 3 * t,0.5)*0.2
 targetSignal=np.sin(2 * np.pi * 10 * t)*0.2
-nTestSignalBlocksLeft=200
+nTestSignalBlocksLeft=2000
 
 
 playedDisturbance=np.zeros(0)
@@ -125,7 +125,7 @@ processedSciPi=sig.convolve(antiCrosstalk.impulseMeasurement.impulseResponse[0,]
 
 sawtoothStart=antiCrosstalk.impulseMeasurement.impulseResponse[0,].shape[0]
 
-displayRange=range(denoisedSignalComplete.shape[0]-1000,denoisedSignalComplete.shape[0])
+displayRange=range(denoisedSignalComplete.shape[0]-5000,denoisedSignalComplete.shape[0])
 #displayRange=range(0,20000)
 fig, ax = plt.subplots()
 

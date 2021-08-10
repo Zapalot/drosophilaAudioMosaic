@@ -47,10 +47,10 @@ paramNMFdiag['continuity']['sparsen'] = [1, 7]
 
 
 subsampling=2           # use only every N'th sample to save processing power
-maxFlyTemplateSize=256  # use only the first n mosaic grains to speed up NMFdiag
+maxFlyTemplateSize=1024  # use only the first n mosaic grains to speed up NMFdiag
 reverbFactorFFT=0.98;   # fraction of old loudness retained from last chunk --- 0: no reverb ... 0.9999: almost inifinite reverb
 
-loudnessBoost=3;			# loudness multiplier to compensate for losses due to reverb normalization
+loudnessBoost=20;			# loudness multiplier to compensate for losses due to reverb normalization
 #initialize synthesizer with fly waveform
 filenameFly = 'template/ZOOM0006_Tr12_excerpt.WAV'
 
@@ -73,11 +73,11 @@ nTotalChannels=3
 
 #settings for crosstalk elemination
 drosophilaSpeakerChannel=0
-drosophilaMikeChannels=[0,1]
+drosophilaMikeChannels=[1,2]
 drosophilaImpulseLength=soundIoBlockSize*4
 
 headphoneSendChannels=[1,2]
-humanVoiceMikeChannel=2
+humanVoiceMikeChannel=0
 ##########initialize crosstalk suppression
 antiCrosstalk=CrosstalkSuppressor(soundIoBlockSize,drosophilaImpulseLength,len(drosophilaMikeChannels))
 
@@ -92,33 +92,53 @@ simulatedSignalComplete=np.zeros(0)
 calibrationFinished=threading.Event()
 
 #debugging
+inCopy=0
 outCopy=0
+mosaicCopy=0
 denoisedCopy=0
+
 #this callback is passed by the sounddeivce library
 def callback(indata, outdata, frames, time, status):
 	if status:
 		print(status)
-	#oldTime=tm.perf_counter() 
-	drosophilaSpeakerSignal=synthesizer.processAudioChunk( indata[:,humanVoiceMikeChannel])	
+	startTime=tm.perf_counter() 
+	if antiCrosstalk.isInitialized:
+		drosophilaSpeakerSignal=synthesizer.processAudioChunk( indata[:,humanVoiceMikeChannel])	*loudnessBoost
+	else:
+		drosophilaSpeakerSignal=indata[:,humanVoiceMikeChannel]
+	synthTime=tm.perf_counter() 
+
 	speakerSignal,denoisedSignal,simulatedSignal=antiCrosstalk.process(drosophilaSpeakerSignal,np.transpose( indata[:,drosophilaMikeChannels]))
+	denoiseTime=tm.perf_counter() 
+
 	global outCopy
+	global inCopy
+	global mosaicCopy
 	global denoisedCopy
+	
 	outCopy=outdata
+	inCopy=indata
 	denoisedCopy=denoisedSignal
+	mosaicCopy=drosophilaSpeakerSignal
 
 	outdata[:,drosophilaSpeakerChannel] = speakerSignal #this might either be a test signal or the signal from mosaiicing
 	outdata[:,headphoneSendChannels] = np.transpose(denoisedSignal)
-	
+	# performance report
+	timeAvailableForOneBlock=soundIoBlockSize/samplerate
+	timeSpentOnMosaic=synthTime-startTime
+	timeSpentOnCrosstalk=denoiseTime-synthTime
+	print ("mosaic:"+str(timeSpentOnMosaic/timeAvailableForOneBlock)+" crosstalk:"+str(timeSpentOnCrosstalk/timeAvailableForOneBlock))   # how many times realtime performance do we achieve?
+			
 	#debug recording
-	global playedDisturbance
-	global recordedSignal
-	global nTestSignalBlocksLeft
-	global denoisedSignalComplete
-	global simulatedSignalComplete
-	playedDisturbance=np.append(playedDisturbance,outdata[:,drosophilaSpeakerChannel])
-	recordedSignal=np.append(recordedSignal,indata[:,drosophilaMikeChannels])
-	denoisedSignalComplete=np.append(denoisedSignalComplete,denoisedSignal[drosophilaMikeChannels,:])
-	simulatedSignalComplete=np.append(simulatedSignalComplete,simulatedSignal[drosophilaMikeChannels,:])
+	#global playedDisturbance
+	#global recordedSignal
+	#global nTestSignalBlocksLeft
+	#global denoisedSignalComplete
+	#global simulatedSignalComplete
+	#playedDisturbance=np.append(playedDisturbance,outdata[:,drosophilaSpeakerChannel])
+	#recordedSignal=np.append(recordedSignal,indata[:,drosophilaMikeChannels])
+	#denoisedSignalComplete=np.append(denoisedSignalComplete,denoisedSignal[drosophilaMikeChannels,:])
+	#simulatedSignalComplete=np.append(simulatedSignalComplete,simulatedSignal[drosophilaMikeChannels,:])
 	# a means of stopping that callback
 	#if antiCrosstalk.isInitialized:
 	#	if nTestSignalBlocksLeft>0:
@@ -138,7 +158,7 @@ try:
 				   channels=nTotalChannels, callback=callback):
 		calibrationFinished.wait()
 except KeyboardInterrupt:
-	print ('calibration aborted')	
+	print ('stopped by user')	
 
 
 

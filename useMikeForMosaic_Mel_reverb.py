@@ -56,8 +56,8 @@ reverbBuffer = np.zeros(paramSTFT['hopSize'])
 if  useLiveAudio:
 	#use live audio
 
-	input_device=0
-	output_device=1
+	input_device="Steinberg UR44"
+	output_device="Steinberg UR44"
 	samplerate=48000
 	blocksize=512*subsampling
 	dtype='float32'
