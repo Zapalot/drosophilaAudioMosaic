@@ -72,16 +72,17 @@ latency="low"
 nTotalChannels=3	
 
 #settings for crosstalk elemination
-drosophilaSpeakerChannel=0
-drosophilaMikeChannels=[1,2]
+drosophilaSpeakerChannel=2
+drosophilaMikeChannels=[0,1]
 drosophilaImpulseLength=soundIoBlockSize*4
 
-headphoneSendChannels=[1,2]
-humanVoiceMikeChannel=0
+headphoneSendChannels=[0,1]
+humanVoiceMikeChannel=2
 ##########initialize crosstalk suppression
 antiCrosstalk=CrosstalkSuppressor(soundIoBlockSize,drosophilaImpulseLength,len(drosophilaMikeChannels))
 ########## OSC spectrum transmission
 from pythonosc import udp_client
+
 import threading
 
 oscTargetIp="192.168.0.101"
@@ -92,13 +93,12 @@ oscClient=udp_client.SimpleUDPClient(oscTargetIp, oscTargetPort)
 			
 def sendOscSpectra(speakerWaveForm, drosophilaWaveForm):
 	drosophilaWaveForm*=oscFFTWindow
-	drosophilaFFT=np.fft.rfft(drosophilaWaveForm)
+	drosophilaFFT=np.abs(np.fft.rfft(drosophilaWaveForm))
 	
 	speakerWaveForm*=oscFFTWindow
-	speakerFFT=np.fft.rfft(speakerWaveForm)
-	
-	oscClient.send_message("/ffts/drosophila", drosophilaFFT)
-	oscClient.send_message("/ffts/human", speakerFFT)
+	speakerFFT=np.abs(np.fft.rfft(speakerWaveForm))
+	oscClient.send_message("/ffts/drosophila", list(drosophilaFFT))
+	oscClient.send_message("/ffts/human", list(speakerFFT))
 	
 #def sendOscSpectraThreadFun(speakerWaveForm, drosophilaWaveForm):
 
@@ -130,7 +130,11 @@ def callback(indata, outdata, frames, time, status):
 
 	speakerSignal,denoisedSignal,simulatedSignal=antiCrosstalk.process(drosophilaSpeakerSignal,np.transpose( indata[:,drosophilaMikeChannels]))
 	denoiseTime=tm.perf_counter() 
-
+	#fft sending
+	denoisedSum=np.sum(denoisedSignal,axis=0)
+	sendOscSpectra( indata[:,humanVoiceMikeChannel],denoisedSum)
+	oscTime=tm.perf_counter() 
+	# sound output
 	global outCopy
 	global inCopy
 	global mosaicCopy
@@ -148,12 +152,11 @@ def callback(indata, outdata, frames, time, status):
 	timeAvailableForOneBlock=soundIoBlockSize/samplerate
 	timeSpentOnMosaic=synthTime-startTime
 	timeSpentOnCrosstalk=denoiseTime-synthTime
-	print ("mosaic:"+str(timeSpentOnMosaic/timeAvailableForOneBlock)+" crosstalk:"+str(timeSpentOnCrosstalk/timeAvailableForOneBlock))   # how many times realtime performance do we achieve?
+	timeSpentOnOsc=oscTime-denoiseTime
+	print ("mosaic:"+str(timeSpentOnMosaic/timeAvailableForOneBlock)+" crosstalk:"+str(timeSpentOnCrosstalk/timeAvailableForOneBlock)+" osc:"+str(timeSpentOnOsc/timeAvailableForOneBlock))   # how many times realtime performance do we achieve?
 			
 
-	#fft sending
-	denoisedSum=np.sum(denoisedSignal,axis=1)
-	sendOscSpectra( indata[:,humanVoiceMikeChannel],denoisedSum)
+
 	
 
 	#debug recording
