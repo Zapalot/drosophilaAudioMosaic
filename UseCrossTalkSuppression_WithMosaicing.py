@@ -45,12 +45,12 @@ paramNMFdiag['continuity']['length'] = 7
 paramNMFdiag['continuity']['grid'] = 1
 paramNMFdiag['continuity']['sparsen'] = [1, 7]
 
-
+speakerOutputLoudnessMultiplier=0.05 #all output is multiplied by this
 subsampling=2           # use only every N'th sample to save processing power
 maxFlyTemplateSize=1024  # use only the first n mosaic grains to speed up NMFdiag
-reverbFactorFFT=0.98;   # fraction of old loudness retained from last chunk --- 0: no reverb ... 0.9999: almost inifinite reverb
+reverbFactorFFT=0.95;   # fraction of old loudness retained from last chunk --- 0: no reverb ... 0.9999: almost inifinite reverb
 
-loudnessBoost=20;			# loudness multiplier to compensate for losses due to reverb normalization
+mosaicLoudnessBoost=100;			# loudness multiplier to compensate for losses due to reverb normalization
 #initialize synthesizer with fly waveform
 filenameFly = 'template/ZOOM0006_Tr12_excerpt.WAV'
 
@@ -74,7 +74,7 @@ nTotalChannels=3
 #settings for crosstalk elemination
 drosophilaSpeakerChannel=2
 drosophilaMikeChannels=[0,1]
-drosophilaImpulseLength=soundIoBlockSize*4
+drosophilaImpulseLength=soundIoBlockSize*2
 
 headphoneSendChannels=[0,1]
 humanVoiceMikeChannel=2
@@ -85,7 +85,7 @@ from pythonosc import udp_client
 
 import threading
 
-oscTargetIp="192.168.0.101"
+oscTargetIp="192.168.5.100"
 oscTargetPort=8000
 oscFFTWindow=np.hamming(soundIoBlockSize)
 oscClient=udp_client.SimpleUDPClient(oscTargetIp, oscTargetPort)
@@ -97,8 +97,8 @@ def sendOscSpectra(speakerWaveForm, drosophilaWaveForm):
 	
 	speakerWaveForm*=oscFFTWindow
 	speakerFFT=np.abs(np.fft.rfft(speakerWaveForm))
-	oscClient.send_message("/ffts/drosophila", list(drosophilaFFT))
-	oscClient.send_message("/ffts/human", list(speakerFFT))
+	oscClient.send_message("/fft/drosophila", list(drosophilaFFT))
+	oscClient.send_message("/fft/human", list(speakerFFT))
 	
 #def sendOscSpectraThreadFun(speakerWaveForm, drosophilaWaveForm):
 
@@ -116,14 +116,17 @@ inCopy=0
 outCopy=0
 mosaicCopy=0
 denoisedCopy=0
-
+#give synthesizer data to initialize it self so it wont cause a buffer underrun when it does in the callback
+for i in range(1,50):
+	drosophilaSpeakerSignal=synthesizer.processAudioChunk( np.zeros(soundIoBlockSize))
+	
 #this callback is passed by the sounddeivce library
 def callback(indata, outdata, frames, time, status):
 	if status:
 		print(status)
 	startTime=tm.perf_counter() 
 	if antiCrosstalk.isInitialized:
-		drosophilaSpeakerSignal=synthesizer.processAudioChunk( indata[:,humanVoiceMikeChannel])	*loudnessBoost
+		drosophilaSpeakerSignal=synthesizer.processAudioChunk( indata[:,humanVoiceMikeChannel])	*mosaicLoudnessBoost
 	else:
 		drosophilaSpeakerSignal=indata[:,humanVoiceMikeChannel]
 	synthTime=tm.perf_counter() 
@@ -131,8 +134,12 @@ def callback(indata, outdata, frames, time, status):
 	speakerSignal,denoisedSignal,simulatedSignal=antiCrosstalk.process(drosophilaSpeakerSignal,np.transpose( indata[:,drosophilaMikeChannels]))
 	denoiseTime=tm.perf_counter() 
 	#fft sending
-	denoisedSum=np.sum(denoisedSignal,axis=0)
-	sendOscSpectra( indata[:,humanVoiceMikeChannel],denoisedSum)
+	if antiCrosstalk.isInitialized:
+		denoisedSum=np.sum(denoisedSignal,axis=0)
+		try:
+			sendOscSpectra( indata[:,humanVoiceMikeChannel],denoisedSum)
+		except:
+			pass
 	oscTime=tm.perf_counter() 
 	# sound output
 	global outCopy
@@ -145,7 +152,7 @@ def callback(indata, outdata, frames, time, status):
 	denoisedCopy=denoisedSignal
 	mosaicCopy=drosophilaSpeakerSignal
 
-	outdata[:,drosophilaSpeakerChannel] = speakerSignal #this might either be a test signal or the signal from mosaiicing
+	outdata[:,drosophilaSpeakerChannel] = speakerSignal*speakerOutputLoudnessMultiplier #this might either be a test signal or the signal from mosaiicing
 	outdata[:,headphoneSendChannels] = np.transpose(denoisedSignal)
 
 	# performance report

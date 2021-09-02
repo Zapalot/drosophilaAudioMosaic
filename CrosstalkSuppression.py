@@ -119,7 +119,7 @@ class BlockSizeAdapter:
 		ioBlocksPerProcessingBlock=int(self.processingBlockSize/self.ioBlockSize)
 		
 		if targetLatencyBlocks<(ioBlocksPerProcessingBlock-1) or targetLatencyBlocks>(ioBlocksPerProcessingBlock*2-1):
-			raise ValueError('targetLatencyBlocks must be between '+ str(ioBlocksPerProcessingBlock-1 )+ "and "+ str(ioBlocksPerProcessingBlock*2-1) )
+			raise ValueError('targetLatencyBlocks is ' + str(targetLatencyBlocks)+'but must be between '+ str(ioBlocksPerProcessingBlock-1 )+ "and "+ str(ioBlocksPerProcessingBlock*2-1) )
 		additionalLatencyBlocks=targetLatencyBlocks-(ioBlocksPerProcessingBlock-1)
 		self.outputChunkStartIndex=self.processingBlockSize+(1-additionalLatencyBlocks)*self.ioBlockSize # can be between ioBlockSize and processingBlockSize to adjust additional latency
 		self.processor=processor
