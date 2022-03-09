@@ -28,7 +28,7 @@ import librosa
 
 #Parameters of Mosaicing
 paramSTFT = dict()
-paramSTFT['blockSize'] = 2048
+paramSTFT['blockSize'] = 1024
 paramSTFT['hopSize'] = 512
 paramSTFT['winFunc'] = np.hanning(paramSTFT['blockSize'])
 paramSTFT['reconstMirror'] = True
@@ -45,15 +45,17 @@ paramNMFdiag['continuity']['length'] = 7
 paramNMFdiag['continuity']['grid'] = 1
 paramNMFdiag['continuity']['sparsen'] = [1, 7]
 
-speakerOutputLoudnessMultiplier=0.05 #all output is multiplied by this
+#!!! adjust volume here!!!
+speakerOutputLoudnessMultiplier=0.15 #all output is multiplied by this
+
 subsampling=2           # use only every N'th sample to save processing power
-maxFlyTemplateSize=1024  # use only the first n mosaic grains to speed up NMFdiag
+maxFlyTemplateSize=2048  # use only the first n mosaic grains to speed up NMFdiag
 reverbFactorFFT=0.95;   # fraction of old loudness retained from last chunk --- 0: no reverb ... 0.9999: almost inifinite reverb
 
 mosaicLoudnessBoost=100;			# loudness multiplier to compensate for losses due to reverb normalization
 #initialize synthesizer with fly waveform
 filenameFly = 'template/ZOOM0006_Tr12_excerpt.WAV'
-
+#filenameFly = 'template/Exzerpt.wav'
 melMatrixVoice= librosa.filters.mel(48000, paramSTFT['blockSize'],n_mels=32,fmax=10000)
 melMatrixFly= librosa.filters.mel(48000, paramSTFT['blockSize'],n_mels=32,fmax=10000)
 synthesizer=MosaicSynthesizer(paramSTFT, paramNMFdiag,melMatrixVoice,melMatrixFly,reverbFactorFFT,subsampling)
