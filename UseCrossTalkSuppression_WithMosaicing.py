@@ -87,28 +87,47 @@ from pythonosc import udp_client
 
 import threading
 
-oscTargetIp="192.168.5.100"
+oscTargetIp="127.0.0.1"
 oscTargetPort=8000
-oscFFTWindow=np.hamming(soundIoBlockSize)
+
+####################################SOund spectra are sent to Graphics engine via OSC
+# a few blocks of incoming signal are buffered to get a higher resolution FFT
+nBlocksToBufferForFft=4
+oscSignalBufferFly=np.zeros(soundIoBlockSize*nBlocksToBufferForFft)
+oscSignalBufferHuman=np.zeros(soundIoBlockSize*nBlocksToBufferForFft)
+oscSignalCurBlock=0 
+oscFFTWindow=np.hamming(soundIoBlockSize*nBlocksToBufferForFft)
 oscClient=udp_client.SimpleUDPClient(oscTargetIp, oscTargetPort)
 #self.impulseResponseReadyEvent=threading.Event()
 			
 def sendOscSpectra(speakerWaveForm, drosophilaWaveForm):
-	drosophilaWaveForm*=oscFFTWindow
-	drosophilaFFT=np.abs(np.fft.rfft(drosophilaWaveForm))
+	global oscSignalCurBlock
+	global oscSignalBufferHuman
+	global oscSignalBufferFly
 	
-	speakerWaveForm*=oscFFTWindow
-	speakerFFT=np.abs(np.fft.rfft(speakerWaveForm))
-	oscClient.send_message("/fft/drosophila", list(drosophilaFFT))
-	oscClient.send_message("/fft/human", list(speakerFFT))
+	if oscSignalCurBlock<4:
+		oscSignalBufferHuman[oscSignalCurBlock*soundIoBlockSize:(oscSignalCurBlock+1)*soundIoBlockSize]=speakerWaveForm
+		oscSignalBufferFly[oscSignalCurBlock*soundIoBlockSize:(oscSignalCurBlock+1)*soundIoBlockSize]=drosophilaWaveForm
+		oscSignalCurBlock+=1
+	else:
+		oscSignalCurBlock=0
+		oscSignalBufferFly*=oscFFTWindow
+		drosophilaFFT=np.abs(np.fft.rfft(oscSignalBufferFly))
+	
+		oscSignalBufferHuman*=oscFFTWindow
+		speakerFFT=np.abs(np.fft.rfft(oscSignalBufferHuman))
+		oscClient.send_message("/fft/drosophila", list(drosophilaFFT))
+		oscClient.send_message("/fft/human", list(speakerFFT))
 	
 #def sendOscSpectraThreadFun(speakerWaveForm, drosophilaWaveForm):
 
 #all time records
-playedDisturbance=np.zeros(0)
-recordedSignal=np.zeros(0)
-denoisedSignalComplete=np.zeros(0)
-simulatedSignalComplete=np.zeros(0)
+debugRecordStart=0
+debugreportLength=1024*1024
+playedDisturbance=np.zeros([debugreportLength,1])
+recordedSignal=np.zeros([debugreportLength,3])
+denoisedSignalComplete=np.zeros([debugreportLength,2])
+simulatedSignalComplete=np.zeros([debugreportLength,2])
 
 
 calibrationFinished=threading.Event()
@@ -144,19 +163,20 @@ def callback(indata, outdata, frames, time, status):
 			pass
 	oscTime=tm.perf_counter() 
 	# sound output
+
+
+	outdata[:,drosophilaSpeakerChannel] = speakerSignal*speakerOutputLoudnessMultiplier #this might either be a test signal or the signal from mosaiicing
+	outdata[:,headphoneSendChannels] = np.transpose(denoisedSignal)
+
 	global outCopy
 	global inCopy
 	global mosaicCopy
 	global denoisedCopy
 	
-	outCopy=outdata
-	inCopy=indata
-	denoisedCopy=denoisedSignal
-	mosaicCopy=drosophilaSpeakerSignal
-
-	outdata[:,drosophilaSpeakerChannel] = speakerSignal*speakerOutputLoudnessMultiplier #this might either be a test signal or the signal from mosaiicing
-	outdata[:,headphoneSendChannels] = np.transpose(denoisedSignal)
-
+	outCopy=np.copy(outdata)
+	inCopy=np.copy(indata)
+	denoisedCopy=np.copy(denoisedSignal)
+	mosaicCopy=np.copy(drosophilaSpeakerSignal)
 	# performance report
 	timeAvailableForOneBlock=soundIoBlockSize/samplerate
 	timeSpentOnMosaic=synthTime-startTime
@@ -168,16 +188,22 @@ def callback(indata, outdata, frames, time, status):
 
 	
 
-	#debug recording
-	#global playedDisturbance
-	#global recordedSignal
-	#global nTestSignalBlocksLeft
-	#global denoisedSignalComplete
-	#global simulatedSignalComplete
-	#playedDisturbance=np.append(playedDisturbance,outdata[:,drosophilaSpeakerChannel])
-	#recordedSignal=np.append(recordedSignal,indata[:,drosophilaMikeChannels])
-	#denoisedSignalComplete=np.append(denoisedSignalComplete,denoisedSignal[drosophilaMikeChannels,:])
-	#simulatedSignalComplete=np.append(simulatedSignalComplete,simulatedSignal[drosophilaMikeChannels,:])
+	#debug recording of first few seconds
+	global debugRecordStart
+	global playedDisturbance
+	global recordedSignal
+	global nTestSignalBlocksLeft
+	global denoisedSignalComplete
+	global simulatedSignalComplete
+	if(antiCrosstalk.isInitialized and debugRecordStart<(debugreportLength-soundIoBlockSize-2)):
+		playedDisturbance[debugRecordStart:(debugRecordStart+soundIoBlockSize),0]=outdata[:,drosophilaSpeakerChannel]
+		recordedSignal[debugRecordStart:(debugRecordStart+soundIoBlockSize),:]=indata[:,[0,1,2]]
+		denoisedSignalComplete[debugRecordStart:(debugRecordStart+soundIoBlockSize),:]=np.transpose(denoisedSignal[drosophilaMikeChannels,:]	)
+		simulatedSignalComplete[debugRecordStart:(debugRecordStart+soundIoBlockSize),:]=np.transpose(simulatedSignal[drosophilaMikeChannels,:])
+		#recordedSignal=np.append(recordedSignal,indata[:,drosophilaMikeChannels])
+		#denoisedSignalComplete=np.append(denoisedSignalComplete,denoisedSignal[drosophilaMikeChannels,:])
+		#simulatedSignalComplete=np.append(simulatedSignalComplete,simulatedSignal[drosophilaMikeChannels,:])
+		debugRecordStart+=soundIoBlockSize
 	# a means of stopping that callback
 	#if antiCrosstalk.isInitialized:
 	#	if nTestSignalBlocksLeft>0:
@@ -203,7 +229,15 @@ except KeyboardInterrupt:
 
 		
 ############some result analysis
-
+if True:
+	with open('debugOut.npy', 'wb') as f:
+	    np.save(f,playedDisturbance)
+	    np.save(f,recordedSignal)
+	    np.save(f,denoisedSignalComplete)
+	    np.save(f,simulatedSignalComplete)
+	    np.save(f,antiCrosstalk.impulseMeasurement.impulseResponse)
+	
+	
 """
 - callback-Schleife unterbrechen können
 - ggf Prozessierung in eigenen Thread?
