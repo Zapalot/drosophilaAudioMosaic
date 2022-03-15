@@ -1,3 +1,5 @@
+#numpy binary blobs
+*.npy
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
