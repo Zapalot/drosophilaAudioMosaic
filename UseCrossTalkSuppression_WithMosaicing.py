@@ -53,6 +53,7 @@ maxFlyTemplateSize=2048  # use only the first n mosaic grains to speed up NMFdia
 reverbFactorFFT=0.95;   # fraction of old loudness retained from last chunk --- 0: no reverb ... 0.9999: almost inifinite reverb
 
 mosaicLoudnessBoost=100;			# loudness multiplier to compensate for losses due to reverb normalization
+startupWaitCycles = 500; # to allow components to wake up from standby, we play a short burst of sound first before beginning calibration
 #initialize synthesizer with fly waveform
 filenameFly = 'template/ZOOM0006_Tr12_excerpt.WAV'
 #filenameFly = 'template/Exzerpt.wav'
@@ -143,67 +144,72 @@ for i in range(1,50):
 	
 #this callback is passed by the sounddeivce library
 def callback(indata, outdata, frames, time, status):
+	global startupWaitCycles
 	if status:
 		print(status)
 	startTime=tm.perf_counter() 
-	if antiCrosstalk.isInitialized:
-		drosophilaSpeakerSignal=synthesizer.processAudioChunk( indata[:,humanVoiceMikeChannel])	*mosaicLoudnessBoost
+	if startupWaitCycles>0:
+		outdata[:,drosophilaSpeakerChannel] =np.sin(np.linspace(0,6.28*10,soundIoBlockSize))*0.05
+		startupWaitCycles=startupWaitCycles-1
 	else:
-		drosophilaSpeakerSignal=indata[:,humanVoiceMikeChannel]
-	synthTime=tm.perf_counter() 
-
-	speakerSignal,denoisedSignal,simulatedSignal=antiCrosstalk.process(drosophilaSpeakerSignal,np.transpose( indata[:,drosophilaMikeChannels]))
-	denoiseTime=tm.perf_counter() 
-	#fft sending
-	if antiCrosstalk.isInitialized:
-		denoisedSum=np.sum(denoisedSignal,axis=0)
-		try:
-			sendOscSpectra( indata[:,humanVoiceMikeChannel],denoisedSum)
-		except:
-			pass
-	oscTime=tm.perf_counter() 
-	# sound output
-
-
-	outdata[:,drosophilaSpeakerChannel] = speakerSignal*speakerOutputLoudnessMultiplier #this might either be a test signal or the signal from mosaiicing
-	outdata[:,headphoneSendChannels] = np.transpose(denoisedSignal)
-
-	global outCopy
-	global inCopy
-	global mosaicCopy
-	global denoisedCopy
+		if antiCrosstalk.isInitialized:
+			drosophilaSpeakerSignal=synthesizer.processAudioChunk( indata[:,humanVoiceMikeChannel])	*mosaicLoudnessBoost
+		else:
+			drosophilaSpeakerSignal=indata[:,humanVoiceMikeChannel]
+		synthTime=tm.perf_counter() 
 	
-	outCopy=np.copy(outdata)
-	inCopy=np.copy(indata)
-	denoisedCopy=np.copy(denoisedSignal)
-	mosaicCopy=np.copy(drosophilaSpeakerSignal)
-	# performance report
-	timeAvailableForOneBlock=soundIoBlockSize/samplerate
-	timeSpentOnMosaic=synthTime-startTime
-	timeSpentOnCrosstalk=denoiseTime-synthTime
-	timeSpentOnOsc=oscTime-denoiseTime
-	print ("mosaic:"+str(timeSpentOnMosaic/timeAvailableForOneBlock)+" crosstalk:"+str(timeSpentOnCrosstalk/timeAvailableForOneBlock)+" osc:"+str(timeSpentOnOsc/timeAvailableForOneBlock))   # how many times realtime performance do we achieve?
+		speakerSignal,denoisedSignal,simulatedSignal=antiCrosstalk.process(drosophilaSpeakerSignal,np.transpose( indata[:,drosophilaMikeChannels]))
+		denoiseTime=tm.perf_counter() 
+		#fft sending
+		if antiCrosstalk.isInitialized:
+			denoisedSum=np.sum(denoisedSignal,axis=0)
+			try:
+				sendOscSpectra( indata[:,humanVoiceMikeChannel],denoisedSum)
+			except:
+				pass
+		oscTime=tm.perf_counter() 
+		# sound output
+	
+	
+		outdata[:,drosophilaSpeakerChannel] = speakerSignal*speakerOutputLoudnessMultiplier #this might either be a test signal or the signal from mosaiicing
+		outdata[:,headphoneSendChannels] = np.transpose(denoisedSignal)
+
+		global outCopy
+		global inCopy
+		global mosaicCopy
+		global denoisedCopy
+		
+		outCopy=np.copy(outdata)
+		inCopy=np.copy(indata)
+		denoisedCopy=np.copy(denoisedSignal)
+		mosaicCopy=np.copy(drosophilaSpeakerSignal)
+		# performance report
+		timeAvailableForOneBlock=soundIoBlockSize/samplerate
+		timeSpentOnMosaic=synthTime-startTime
+		timeSpentOnCrosstalk=denoiseTime-synthTime
+		timeSpentOnOsc=oscTime-denoiseTime
+		print ("mosaic:"+str(timeSpentOnMosaic/timeAvailableForOneBlock)+" crosstalk:"+str(timeSpentOnCrosstalk/timeAvailableForOneBlock)+" osc:"+str(timeSpentOnOsc/timeAvailableForOneBlock))   # how many times realtime performance do we achieve?
 			
 
 
 	
 
-	#debug recording of first few seconds
-	global debugRecordStart
-	global playedDisturbance
-	global recordedSignal
-	global nTestSignalBlocksLeft
-	global denoisedSignalComplete
-	global simulatedSignalComplete
-	if(antiCrosstalk.isInitialized and debugRecordStart<(debugreportLength-soundIoBlockSize-2)):
-		playedDisturbance[debugRecordStart:(debugRecordStart+soundIoBlockSize),0]=outdata[:,drosophilaSpeakerChannel]
-		recordedSignal[debugRecordStart:(debugRecordStart+soundIoBlockSize),:]=indata[:,[0,1,2]]
-		denoisedSignalComplete[debugRecordStart:(debugRecordStart+soundIoBlockSize),:]=np.transpose(denoisedSignal[drosophilaMikeChannels,:]	)
-		simulatedSignalComplete[debugRecordStart:(debugRecordStart+soundIoBlockSize),:]=np.transpose(simulatedSignal[drosophilaMikeChannels,:])
-		#recordedSignal=np.append(recordedSignal,indata[:,drosophilaMikeChannels])
-		#denoisedSignalComplete=np.append(denoisedSignalComplete,denoisedSignal[drosophilaMikeChannels,:])
-		#simulatedSignalComplete=np.append(simulatedSignalComplete,simulatedSignal[drosophilaMikeChannels,:])
-		debugRecordStart+=soundIoBlockSize
+		#debug recording of first few seconds
+		global debugRecordStart
+		global playedDisturbance
+		global recordedSignal
+		global nTestSignalBlocksLeft
+		global denoisedSignalComplete
+		global simulatedSignalComplete
+		if(False and antiCrosstalk.isInitialized and debugRecordStart<(debugreportLength-soundIoBlockSize-2)):
+			playedDisturbance[debugRecordStart:(debugRecordStart+soundIoBlockSize),0]=outdata[:,drosophilaSpeakerChannel]
+			recordedSignal[debugRecordStart:(debugRecordStart+soundIoBlockSize),:]=indata[:,[0,1,2]]
+			denoisedSignalComplete[debugRecordStart:(debugRecordStart+soundIoBlockSize),:]=np.transpose(denoisedSignal[drosophilaMikeChannels,:]	)
+			simulatedSignalComplete[debugRecordStart:(debugRecordStart+soundIoBlockSize),:]=np.transpose(simulatedSignal[drosophilaMikeChannels,:])
+			#recordedSignal=np.append(recordedSignal,indata[:,drosophilaMikeChannels])
+			#denoisedSignalComplete=np.append(denoisedSignalComplete,denoisedSignal[drosophilaMikeChannels,:])
+			#simulatedSignalComplete=np.append(simulatedSignalComplete,simulatedSignal[drosophilaMikeChannels,:])
+			debugRecordStart+=soundIoBlockSize
 	# a means of stopping that callback
 	#if antiCrosstalk.isInitialized:
 	#	if nTestSignalBlocksLeft>0:
