@@ -55,8 +55,8 @@ reverbFactorFFT=0.95;   # fraction of old loudness retained from last chunk --- 
 mosaicLoudnessBoost=100;			# loudness multiplier to compensate for losses due to reverb normalization
 startupWaitCycles = 500; # to allow components to wake up from standby, we play a short burst of sound first before beginning calibration
 #initialize synthesizer with fly waveform
-filenameFly = 'template/ZOOM0006_Tr12_excerpt.WAV'
-#filenameFly = 'template/Exzerpt.wav'
+#filenameFly = 'template/ZOOM0006_Tr12_excerpt.WAV'
+filenameFly = 'template/samples_Birgit_5_2022_mixdown.wav'
 melMatrixVoice= librosa.filters.mel(48000, paramSTFT['blockSize'],n_mels=32,fmax=10000)
 melMatrixFly= librosa.filters.mel(48000, paramSTFT['blockSize'],n_mels=32,fmax=10000)
 synthesizer=MosaicSynthesizer(paramSTFT, paramNMFdiag,melMatrixVoice,melMatrixFly,reverbFactorFFT,subsampling)
@@ -150,6 +150,7 @@ def callback(indata, outdata, frames, time, status):
 	startTime=tm.perf_counter() 
 	if startupWaitCycles>0:
 		outdata[:,drosophilaSpeakerChannel] =np.sin(np.linspace(0,6.28*10,soundIoBlockSize))*0.05
+		outdata[:,headphoneSendChannels] =0
 		startupWaitCycles=startupWaitCycles-1
 	else:
 		if antiCrosstalk.isInitialized:
