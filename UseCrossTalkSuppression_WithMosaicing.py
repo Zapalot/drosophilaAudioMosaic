@@ -49,14 +49,14 @@ paramNMFdiag['continuity']['sparsen'] = [1, 7]
 speakerOutputLoudnessMultiplier=0.15 #all output is multiplied by this
 
 subsampling=2           # use only every N'th sample to save processing power
-maxFlyTemplateSize=2048  # use only the first n mosaic grains to speed up NMFdiag
+maxFlyTemplateSize=1024  # 2048 use only the first n mosaic grains to speed up NMFdiag
 reverbFactorFFT=0.95;   # fraction of old loudness retained from last chunk --- 0: no reverb ... 0.9999: almost inifinite reverb
 
 mosaicLoudnessBoost=100;			# loudness multiplier to compensate for losses due to reverb normalization
 startupWaitCycles = 500; # to allow components to wake up from standby, we play a short burst of sound first before beginning calibration
 #initialize synthesizer with fly waveform
-#filenameFly = 'template/ZOOM0006_Tr12_excerpt.WAV'
-filenameFly = 'template/samples_Birgit_5_2022_mixdown.wav'
+filenameFly = 'template/ZOOM0006_Tr12_excerpt.WAV'
+#filenameFly = 'template/samples_Birgit_5_2022_mixdown.wav'
 melMatrixVoice= librosa.filters.mel(48000, paramSTFT['blockSize'],n_mels=32,fmax=10000)
 melMatrixFly= librosa.filters.mel(48000, paramSTFT['blockSize'],n_mels=32,fmax=10000)
 synthesizer=MosaicSynthesizer(paramSTFT, paramNMFdiag,melMatrixVoice,melMatrixFly,reverbFactorFFT,subsampling)
@@ -71,7 +71,7 @@ output_device="Steinberg UR44"
 samplerate=48000
 soundIoBlockSize=512*subsampling
 dtype='float32'
-latency="low"
+latency="high"
 nTotalChannels=3	
 
 #settings for crosstalk elemination
