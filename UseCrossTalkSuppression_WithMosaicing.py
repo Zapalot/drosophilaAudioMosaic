@@ -47,6 +47,7 @@ paramNMFdiag['continuity']['sparsen'] = [1, 7]
 
 #!!! adjust volume here!!!
 speakerOutputLoudnessMultiplier=0.15 #all output is multiplied by this
+mosaicVolumeInHeadphones=0.1 # range 0-1 ,0 means full noise cancellation, 1 means no noise cancellation 
 
 subsampling=2           # use only every N'th sample to save processing power
 maxFlyTemplateSize=1024  # 2048 use only the first n mosaic grains to speed up NMFdiag
@@ -145,6 +146,7 @@ for i in range(1,50):
 #this callback is passed by the sounddeivce library
 def callback(indata, outdata, frames, time, status):
 	global startupWaitCycles
+	global mosaicVolumeInHeadphones
 	if status:
 		print(status)
 	startTime=tm.perf_counter() 
@@ -159,7 +161,11 @@ def callback(indata, outdata, frames, time, status):
 			drosophilaSpeakerSignal=indata[:,humanVoiceMikeChannel]
 		synthTime=tm.perf_counter() 
 	
-		speakerSignal,denoisedSignal,simulatedSignal=antiCrosstalk.process(drosophilaSpeakerSignal,np.transpose( indata[:,drosophilaMikeChannels]))
+		speakerSignal,denoisedSignal,simulatedSignal=antiCrosstalk.process(
+			drosophilaSpeakerSignal,
+			np.transpose( indata[:,drosophilaMikeChannels]),
+			mosaicVolumeInHeadphones
+			)
 		denoiseTime=tm.perf_counter() 
 		#fft sending
 		if antiCrosstalk.isInitialized:
