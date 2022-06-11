@@ -175,10 +175,10 @@ class CrosstalkSuppressor:
 		self.ioBlockSize =ioBlockSize
 		self.convolutionSize=convolutionSize
 		self.nChannels=nChannels
-		self.impulseMeasurement=ImpulseResponseMeasurement(19,self.nChannels)
+		self.impulseMeasurement=ImpulseResponseMeasurement(20,self.nChannels)
 		self.isInitialized=False
 	def reset(self):
-		self.impulseMeasurement=ImpulseResponseMeasurement(19,self.nChannels)
+		self.impulseMeasurement=ImpulseResponseMeasurement(20,self.nChannels)
 		self.isInitialized=False
 	def _initialize(self):
 		self.bestStartHop, startBin,endBin =self.getBestImpulseResponseCut(self.convolutionSize, self.ioBlockSize,self.impulseMeasurement.impulseResponse)

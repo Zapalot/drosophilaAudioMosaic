@@ -47,20 +47,21 @@ paramNMFdiag['continuity']['sparsen'] = [1, 7]
 
 #!!! adjust volume here!!!
 speakerOutputLoudnessMultiplier=0.15 #all output is multiplied by this
-mosaicVolumeInHeadphones=0.1 # range 0-1 ,0 means full noise cancellation, 1 means no noise cancellation 
+mosaicVolumeInHeadphones=0.5 # range 0-1 ,0 means full noise cancellation, 1 means no noise cancellation 
+speakerVolumeInHeadphones=0.6 # range 0-1 ,how much of the unaltered human voice should be in the headphones 
 
 subsampling=2           # use only every N'th sample to save processing power
-maxFlyTemplateSize=1024  # 2048 use only the first n mosaic grains to speed up NMFdiag
+maxFlyTemplateSize=4096  # 2048 use only the first n mosaic grains to speed up NMFdiag
 reverbFactorFFT=0.95;   # fraction of old loudness retained from last chunk --- 0: no reverb ... 0.9999: almost inifinite reverb
 
 mosaicLoudnessBoost=120;			# war 100 loudness multiplier to compensate for losses due to reverb normalization
 startupWaitCycles = 500; # to allow components to wake up from standby, we play a short burst of sound first before beginning calibration
 #initialize synthesizer with fly waveform
-#filenameFly = 'template/ZOOM0006_Tr12_excerpt.WAV'
-filenameFly = 'template/template_melano.wav'
+filenameFly = 'template/ZOOM0006_Tr12_excerpt.WAV'
+#filenameFly = 'template/template_melano.wav'
 #filenameFly = 'template/template_komposition_7.wav'
 melMatrixVoice= librosa.filters.mel(48000, paramSTFT['blockSize'],n_mels=32,fmax=10000)
-melMatrixFly= librosa.filters.mel(48000, paramSTFT['blockSize'],n_mels=32,fmax=1000)
+melMatrixFly= librosa.filters.mel(48000, paramSTFT['blockSize'],n_mels=32,fmax=3000)
 synthesizer=MosaicSynthesizer(paramSTFT, paramNMFdiag,melMatrixVoice,melMatrixFly,reverbFactorFFT,subsampling)
 synthesizer.prepareFlyInformation(filenameFly,maxFlyTemplateSize)
 
@@ -165,7 +166,7 @@ def callback(indata, outdata, frames, time, status):
 		speakerSignal,denoisedSignal,simulatedSignal=antiCrosstalk.process(
 			drosophilaSpeakerSignal,
 			np.transpose( indata[:,drosophilaMikeChannels]),
-			mosaicVolumeInHeadphones
+			1.0-mosaicVolumeInHeadphones
 			)
 		denoiseTime=tm.perf_counter() 
 		#fft sending
@@ -180,7 +181,7 @@ def callback(indata, outdata, frames, time, status):
 	
 	
 		outdata[:,drosophilaSpeakerChannel] = speakerSignal*speakerOutputLoudnessMultiplier #this might either be a test signal or the signal from mosaiicing
-		outdata[:,headphoneSendChannels] = np.transpose(denoisedSignal)
+		outdata[:,headphoneSendChannels] = np.transpose(denoisedSignal)+speakerVolumeInHeadphones*indata[:,[humanVoiceMikeChannel,humanVoiceMikeChannel]]
 
 		global outCopy
 		global inCopy
