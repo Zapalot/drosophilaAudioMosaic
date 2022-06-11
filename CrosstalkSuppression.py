@@ -188,13 +188,14 @@ class CrosstalkSuppressor:
 		self.isInitialized=True
 	def process(self,
 			 crosstalkPlayedData, # what is supposed to be played on the disturbing loudspeaker 
-			  crosstalkReceivedData 		  # what is coming from the microphones that are contaminated by crosstalk 
+			  crosstalkReceivedData, 		  # what is coming from the microphones that are contaminated by crosstalk
+			  crosstalkEleminationFraction # how much of the  crosstalk is supposed to be eleminated (fraction [0,1]) 
 			  ):
 		
 		# we are ready to process external audio
 		if self.isInitialized:
 			simulatedNoiseAtMike=self.bsa.process(crosstalkPlayedData)
-			simulatedNoiseFreeSignal=crosstalkReceivedData-simulatedNoiseAtMike
+			simulatedNoiseFreeSignal=crosstalkReceivedData-simulatedNoiseAtMike*crosstalkEleminationFraction
 			return crosstalkPlayedData,simulatedNoiseFreeSignal,simulatedNoiseAtMike
 		#the impulse response calculation has just finished
 		if self.impulseMeasurement.impulseResponseReadyEvent.isSet():
